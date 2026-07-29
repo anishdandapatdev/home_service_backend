@@ -1,0 +1,397 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  TECHNICIAN
+  ADMIN
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum SkillCategory {
+  ELECTRICAL
+  PLUMBING
+  AC
+  RO
+  PUMP
+  GEYSER
+  FAN
+  OTHER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING_INSPECTION
+}
+
+enum InspectionStatus {
+  SCHEDULED
+  COMPLETED
+  MISSED
+}
+
+enum ServiceRequestStatus {
+  RAISED
+  ASSIGNED
+  EN_ROUTE
+  ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SparePartApproval {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentReferenceType {
+  MEMBERSHIP
+  INVOICE
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum RewardReason {
+  UNUSED_CYCLE
+  TIMELY_RENEWAL
+  OTHER
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+}
+
+model User {
+  id         String   @id @default(uuid())
+  phone      String   @unique
+  name       String?
+  email      String?
+  role       UserRole @default(CUSTOMER)
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  addresses        Address[]
+  memberships      Membership[]
+  service_requests ServiceRequest[]
+  payments         Payment[]
+  reward_ledgers   RewardLedger[]
+  complaints       Complaint[]
+  notifications    Notification[]
+
+  @@map("users")
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  user_id    String
+  label      String   @default("Home")
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  pincode    String
+  lat        Float?
+  lng        Float?
+  is_default Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+model Technician {
+  id            String          @id @default(uuid())
+  phone         String          @unique
+  name          String
+  password_hash String?
+  kyc_status    KycStatus       @default(PENDING)
+  kyc_documents String[]        @default([])
+  skills        SkillCategory[] @default([])
+  is_active     Boolean         @default(true)
+  service_area  String[]        @default([])
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+
+  inspections      Inspection[]
+  service_requests ServiceRequest[]
+  ratings          Rating[]
+  notifications    Notification[]
+
+  @@map("technicians")
+}
+
+model AdminUser {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  name          String
+  role          UserRole @default(ADMIN)
+  created_at    DateTime @default(now())
+
+  @@map("admin_users")
+}
+
+model MembershipPlan {
+  id             String   @id @default(uuid())
+  name           String
+  tier_code      String   @unique
+  price          Float
+  coverage_rules Json
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  memberships Membership[]
+
+  @@map("membership_plans")
+}
+
+model Membership {
+  id            String           @id @default(uuid())
+  user_id       String
+  plan_id       String
+  status        MembershipStatus @default(PENDING_INSPECTION)
+  start_date    DateTime
+  end_date      DateTime
+  renewal_date  DateTime
+  auto_renew    Boolean          @default(true)
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+
+  user User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan MembershipPlan @relation(fields: [plan_id], references: [id])
+
+  inspections      Inspection[]
+  service_requests ServiceRequest[]
+
+  @@map("memberships")
+}
+
+model Inspection {
+  id             String           @id @default(uuid())
+  membership_id  String
+  technician_id  String?
+  scheduled_date DateTime
+  status         InspectionStatus @default(SCHEDULED)
+  report_notes   String?
+  photo_urls     String[]         @default([])
+  completed_at   DateTime?
+  created_at     DateTime         @default(now())
+
+  membership Membership  @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  technician Technician? @relation(fields: [technician_id], references: [id], onDelete: SetNull)
+
+  @@map("inspections")
+}
+
+model ServiceRequest {
+  id                     String               @id @default(uuid())
+  user_id                String
+  membership_id          String
+  technician_id          String?
+  category               SkillCategory
+  description            String
+  is_emergency           Boolean              @default(false)
+  status                 ServiceRequestStatus @default(RAISED)
+  requested_time_window  String?
+  before_photos          String[]             @default([])
+  after_photos           String[]             @default([])
+  customer_signature_url String?
+  created_at             DateTime             @default(now())
+  updated_at             DateTime             @updatedAt
+  completed_at           DateTime?
+
+  user       User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  membership Membership  @relation(fields: [membership_id], references: [id])
+  technician Technician? @relation(fields: [technician_id], references: [id], onDelete: SetNull)
+
+  spare_parts  SparePart[]
+  invoices     Invoice[]
+  complaints   Complaint[]
+  rating       Rating?
+  live_location TechnicianLocation?
+
+  @@map("service_requests")
+}
+
+model SparePart {
+  id                 String            @id @default(uuid())
+  service_request_id String
+  name               String
+  cost               Float
+  quantity           Int               @default(1)
+  approval_status    SparePartApproval @default(PENDING)
+  approved_at        DateTime?
+  created_at         DateTime          @default(now())
+
+  service_request ServiceRequest @relation(fields: [service_request_id], references: [id], onDelete: Cascade)
+
+  @@map("spare_parts")
+}
+
+model Invoice {
+  id                 String   @id @default(uuid())
+  service_request_id String
+  labour_cost        Float    @default(0)
+  parts_total        Float    @default(0)
+  tax                Float    @default(0)
+  grand_total        Float    @default(0)
+  pdf_url            String?
+  created_at         DateTime @default(now())
+
+  service_request ServiceRequest @relation(fields: [service_request_id], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model Payment {
+  id                 String               @id @default(uuid())
+  user_id            String
+  reference_type     PaymentReferenceType
+  reference_id       String
+  amount             Float
+  razorpay_order_id  String               @unique
+  razorpay_payment_id String?
+  razorpay_signature String?
+  status             PaymentStatus        @default(CREATED)
+  created_at         DateTime             @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model RewardLedger {
+  id         String       @id @default(uuid())
+  user_id    String
+  points     Int
+  reason     RewardReason
+  expires_at DateTime?
+  created_at DateTime     @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("reward_ledgers")
+}
+
+model RewardCatalogItem {
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  points_required Int
+  partner_name    String
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+
+  @@map("reward_catalog_items")
+}
+
+model Complaint {
+  id                 String          @id @default(uuid())
+  user_id            String
+  service_request_id String?
+  subject            String
+  description        String
+  status             ComplaintStatus @default(OPEN)
+  resolution_notes   String?
+  created_at         DateTime        @default(now())
+  resolved_at        DateTime?
+
+  user            User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  service_request ServiceRequest? @relation(fields: [service_request_id], references: [id], onDelete: SetNull)
+
+  @@map("complaints")
+}
+
+model Rating {
+  id                 String   @id @default(uuid())
+  service_request_id String   @unique
+  technician_id      String
+  stars              Int
+  comment            String?
+  created_at         DateTime @default(now())
+
+  service_request ServiceRequest @relation(fields: [service_request_id], references: [id], onDelete: Cascade)
+  technician      Technician     @relation(fields: [technician_id], references: [id], onDelete: Cascade)
+
+  @@map("ratings")
+}
+
+model Notification {
+  id            String              @id @default(uuid())
+  user_id       String?
+  technician_id String?
+  channel       NotificationChannel
+  title         String
+  body          String
+  sent_at       DateTime            @default(now())
+
+  user       User?       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  technician Technician? @relation(fields: [technician_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model TechnicianLocation {
+  id                 String   @id @default(uuid())
+  service_request_id String   @unique
+  technician_id      String
+  lat                Float
+  lng                Float
+  heading            Float?   @default(0)
+  speed_kmh          Float?   @default(0)
+  updated_at         DateTime @updatedAt
+
+  service_request ServiceRequest @relation(fields: [service_request_id], references: [id], onDelete: Cascade)
+
+  @@map("technician_locations")
+}
+
+model LeadCapture {
+  id         String     @id @default(uuid())
+  name       String
+  phone      String
+  email      String?
+  message    String?
+  source     String     @default("WEBSITE")
+  status     LeadStatus @default(NEW)
+  created_at DateTime   @default(now())
+
+  @@map("lead_captures")
+}
