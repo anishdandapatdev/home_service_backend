@@ -65,11 +65,11 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   logger.log(`===========================================================`);
   logger.log(`🚀 Home Maintenance Backend Server running on port ${port}`);
-  logger.log(`📚 OpenAPI / Swagger UI available at: http://localhost:${port}/api/docs`);
+  logger.log(`📚 Swagger available at /api/docs`);
   logger.log(`===========================================================`);
 }
 
