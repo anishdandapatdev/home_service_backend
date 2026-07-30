@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
 RUN apk add --no-cache openssl
 
@@ -13,8 +13,19 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Remove devDependencies to slim down the image
-RUN npm prune --omit=dev
+FROM node:22-alpine
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+# Copy package files so npm scripts (e.g. deploy) are available at runtime
+COPY package*.json ./
+
+# Copy compiled output and dependencies from the builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 3000
 
