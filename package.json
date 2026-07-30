@@ -4,6 +4,9 @@
   "description": "Home Maintenance Membership Platform - NestJS Backend",
   "author": "Anish Dandapat",
   "private": true,
+  "engines": {
+  "node": "22.x"
+},
   "license": "UNLICENSED",
   "scripts": {
     "build": "prisma generate && nest build",
