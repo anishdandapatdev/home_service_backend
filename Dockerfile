@@ -12,6 +12,7 @@ RUN npm ci
 # Copy source and build
 COPY . .
 RUN npm run build
+RUN ls -la /app/dist
 
 FROM node:22-alpine
 
@@ -24,6 +25,7 @@ COPY package*.json ./
 
 # Copy compiled output and dependencies from the builder stage
 COPY --from=builder /app/dist ./dist
+RUN ls -la ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 
