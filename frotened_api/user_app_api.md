@@ -199,7 +199,7 @@ GET /plans
     },
     "is_active": true
   },
-  ...
+  
 ]
 ```
 

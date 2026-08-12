@@ -12,17 +12,16 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async sendSms(phone: string, textMessage: string, userId?: string, technicianId?: string): Promise<boolean> {
+  async sendSms(phone: string, textMessage: string, userId?: string): Promise<boolean> {
     const apiKey = this.configService.get<string>('MSG91_API_KEY');
     const senderId = this.configService.get<string>('MSG91_SENDER_ID');
 
     this.logger.log(`[MSG91 SMS] To: ${phone} | Sender: ${senderId || 'DEFAULT'} | Message: ${textMessage}`);
 
-    if (userId || technicianId) {
+    if (userId) {
       await this.prisma.notification.create({
         data: {
           user_id: userId,
-          technician_id: technicianId,
           channel: NotificationChannel.SMS,
           title: 'SMS Notification',
           body: textMessage,
@@ -30,7 +29,6 @@ export class NotificationsService {
       });
     }
 
-    // In production with real MSG91 API key, execute HTTP fetch to MSG91 API endpoint
     return true;
   }
 
@@ -39,15 +37,13 @@ export class NotificationsService {
     title: string,
     body: string,
     userId?: string,
-    technicianId?: string,
   ): Promise<boolean> {
     this.logger.log(`[FCM/APNs Push] Title: "${title}" | Body: "${body}" | Target: ${targetToken || 'Broadcast'}`);
 
-    if (userId || technicianId) {
+    if (userId) {
       await this.prisma.notification.create({
         data: {
           user_id: userId,
-          technician_id: technicianId,
           channel: NotificationChannel.PUSH,
           title,
           body,
@@ -58,14 +54,10 @@ export class NotificationsService {
     return true;
   }
 
-  async getNotificationHistory(userId?: string, technicianId?: string) {
+  async getNotificationsByUserId(userId: string) {
     return this.prisma.notification.findMany({
-      where: {
-        ...(userId ? { user_id: userId } : {}),
-        ...(technicianId ? { technician_id: technicianId } : {}),
-      },
+      where: { user_id: userId },
       orderBy: { sent_at: 'desc' },
-      take: 50,
     });
   }
 }

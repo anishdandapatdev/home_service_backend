@@ -1,198 +1,71 @@
-import { PrismaClient, UserRole, KycStatus, SkillCategory } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import { PrismaClient, PaymentReferenceType, PaymentStatus, NotificationChannel } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Home Maintenance Platform database...');
+  console.log('Seeding Quickox platform database...');
 
-  // 1. Seed Admin User
-  const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 10);
-  const admin = await prisma.adminUser.upsert({
-    where: { email: 'admin@homemaintenance.com' },
+  // 1. Seed Customer User
+  const user = await prisma.user.upsert({
+    where: { phone: '+919876543210' },
     update: {},
     create: {
-      email: 'admin@homemaintenance.com',
-      name: 'Super Admin',
-      password_hash: adminPasswordHash,
-      role: UserRole.ADMIN,
+      phone: '+919876543210',
+      name: 'Anish Customer',
+      email: 'customer@quickox.com',
+      is_active: true,
     },
   });
-  console.log(`Admin user created: ${admin.email}`);
+  console.log(`Customer created: ${user.phone}`);
 
-  // 2. Seed 7 Membership Plans
-  const plans = [
-    {
-      tier_code: 'TIER_1',
-      name: 'Essential Electrical & Fan Plan',
-      price: 399,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'FAN'],
-        annual_visits: 6,
-        emergency_priority: false,
-        labour_covered: true,
-        inspection_included: true,
-      },
+  // 2. Seed Sample Payment
+  const payment = await prisma.payment.upsert({
+    where: { razorpay_order_id: 'order_demo_1001' },
+    update: {},
+    create: {
+      user_id: user.id,
+      amount: 499,
+      reference_type: PaymentReferenceType.MEMBERSHIP,
+      reference_id: 'REF_MEMBERSHIP_TIER_2',
+      razorpay_order_id: 'order_demo_1001',
+      razorpay_payment_id: 'pay_demo_1001',
+      razorpay_signature: 'dummy_sig_1001',
+      status: PaymentStatus.SUCCESS,
     },
-    {
-      tier_code: 'TIER_2',
-      name: 'Electrical & Plumbing Care',
-      price: 499,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'PLUMBING', 'FAN'],
-        annual_visits: 8,
-        emergency_priority: false,
-        labour_covered: true,
-        inspection_included: true,
-      },
-    },
-    {
-      tier_code: 'TIER_3',
-      name: 'Home Essentials Plus (Pump & Geyser)',
-      price: 599,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'PLUMBING', 'FAN', 'PUMP', 'GEYSER'],
-        annual_visits: 10,
-        emergency_priority: false,
-        labour_covered: true,
-        inspection_included: true,
-      },
-    },
-    {
-      tier_code: 'TIER_4',
-      name: 'Complete Home & RO Pure Care',
-      price: 699,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'PLUMBING', 'FAN', 'PUMP', 'GEYSER', 'RO'],
-        annual_visits: 12,
-        emergency_priority: false,
-        labour_covered: true,
-        inspection_included: true,
-      },
-    },
-    {
-      tier_code: 'TIER_5',
-      name: 'Comfort & Climate Shield (AC Filter)',
-      price: 799,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'PLUMBING', 'FAN', 'PUMP', 'GEYSER', 'RO', 'AC'],
-        annual_visits: 14,
-        emergency_priority: false,
-        labour_covered: true,
-        inspection_included: true,
-      },
-    },
-    {
-      tier_code: 'TIER_6',
-      name: 'Full Estate Coverage (AC Comprehensive)',
-      price: 899,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'PLUMBING', 'FAN', 'PUMP', 'GEYSER', 'RO', 'AC'],
-        annual_visits: 18,
-        emergency_priority: true,
-        labour_covered: true,
-        inspection_included: true,
-      },
-    },
-    {
-      tier_code: 'TIER_7',
-      name: 'VIP Ultra Protection Plan (24/7 Priority Emergency)',
-      price: 999,
-      coverage_rules: {
-        categories: ['ELECTRICAL', 'PLUMBING', 'FAN', 'PUMP', 'GEYSER', 'RO', 'AC', 'OTHER'],
-        annual_visits: 99,
-        emergency_priority: true,
-        labour_covered: true,
-        inspection_included: true,
-      },
-    },
-  ];
+  });
+  console.log(`Payment created: ${payment.razorpay_order_id}`);
 
-  for (const plan of plans) {
-    await prisma.membershipPlan.upsert({
-      where: { tier_code: plan.tier_code },
-      update: { name: plan.name, price: plan.price, coverage_rules: plan.coverage_rules },
-      create: plan,
-    });
-  }
-  console.log('7 Membership Plans seeded successfully.');
+  // 3. Seed Sample Invoice
+  const invoice = await prisma.invoice.create({
+    data: {
+      user_id: user.id,
+      title: 'Home Electrical & Plumbing Annual Invoice',
+      description: 'Annual membership service invoice',
+      amount: 499,
+      tax: 89.82,
+      grand_total: 588.82,
+      pdf_url: 'https://res.cloudinary.com/demo/image/upload/v1/quickox_invoices/INV_1001.pdf',
+    },
+  });
+  console.log(`Invoice created: ${invoice.id}`);
 
-  // 3. Seed Sample Technicians
-  const techPasswordHash = await bcrypt.hash('TechPassword123!', 10);
-  const sampleTechs = [
-    {
-      phone: '9876543210',
-      name: 'Rajesh Kumar',
-      password_hash: techPasswordHash,
-      kyc_status: KycStatus.VERIFIED,
-      skills: [SkillCategory.ELECTRICAL, SkillCategory.FAN, SkillCategory.AC],
-      service_area: ['721602', '721607', 'Haldia', 'Sutahata'],
+  // 4. Seed Notification
+  const notification = await prisma.notification.create({
+    data: {
+      user_id: user.id,
+      channel: NotificationChannel.SMS,
+      title: 'Welcome to Quickox',
+      body: 'Your account has been successfully verified.',
     },
-    {
-      phone: '9876543211',
-      name: 'Amitabh Roy',
-      password_hash: techPasswordHash,
-      kyc_status: KycStatus.VERIFIED,
-      skills: [SkillCategory.PLUMBING, SkillCategory.PUMP, SkillCategory.GEYSER],
-      service_area: ['721602', '721657', 'Haldia', 'Durgachak'],
-    },
-    {
-      phone: '9876543212',
-      name: 'Subhash Das',
-      password_hash: techPasswordHash,
-      kyc_status: KycStatus.VERIFIED,
-      skills: [SkillCategory.RO, SkillCategory.AC, SkillCategory.ELECTRICAL],
-      service_area: ['721602', 'Haldia'],
-    },
-  ];
+  });
+  console.log(`Notification created: ${notification.id}`);
 
-  for (const tech of sampleTechs) {
-    await prisma.technician.upsert({
-      where: { phone: tech.phone },
-      update: {},
-      create: tech,
-    });
-  }
-  console.log('Sample technicians seeded.');
-
-  // 4. Seed Reward Catalog Items
-  const rewards = [
-    {
-      title: '₹200 Off Next Spare Part Invoice',
-      description: 'Redeem 500 points for ₹200 discount on billable spare parts.',
-      points_required: 500,
-      partner_name: 'Home Maintenance Platform',
-    },
-    {
-      title: 'Free RO Sediment Filter Replacement',
-      description: 'Redeem 800 points for a free genuine sediment filter replacement.',
-      points_required: 800,
-      partner_name: 'Kent / Aquaguard Genuine Parts',
-    },
-    {
-      title: '₹500 Flipkart Gift Card',
-      description: 'Redeem 1200 points for an e-gift voucher.',
-      points_required: 1200,
-      partner_name: 'Flipkart Rewards',
-    },
-  ];
-
-  for (const r of rewards) {
-    const existing = await prisma.rewardCatalogItem.findFirst({
-      where: { title: r.title },
-    });
-    if (!existing) {
-      await prisma.rewardCatalogItem.create({ data: r });
-    }
-  }
-  console.log('Reward Catalog items seeded.');
-
-  console.log('Database seeding complete!');
+  console.log('Seeding completed successfully!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Error during seeding:', e);
     process.exit(1);
   })
   .finally(async () => {
