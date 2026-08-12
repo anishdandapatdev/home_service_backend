@@ -1,5 +1,7 @@
 import { PrismaClient, PaymentReferenceType, PaymentStatus, NotificationChannel } from '@prisma/client';
 
+declare const process: any;
+
 const prisma = new PrismaClient();
 
 async function main() {
