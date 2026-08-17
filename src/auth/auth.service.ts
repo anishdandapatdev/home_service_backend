@@ -30,19 +30,35 @@ export class AuthService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  private normalizePhone(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10) return `+91${digits}`;
+    if (digits.startsWith('91') && digits.length === 12) return `+${digits}`;
+    return phone.startsWith('+') ? phone : `+${digits}`;
+  }
+
   async sendOtp(sendOtpDto: SendOtpDto) {
-    const { phone } = sendOtpDto;
+    const phone = this.normalizePhone(sendOtpDto.phone);
 
     const isDev = this.configService.get('NODE_ENV') !== 'production';
-    const otp = isDev ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate real 6-digit dynamic OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const expiresAt = Date.now() + 5 * 60 * 1000;
     this.otpStore.set(phone, { otp, expires_at: expiresAt, attempts: 0 });
 
-    const smsText = `Your Quickox verification code is: ${otp}. Valid for 5 minutes.`;
-    await this.notificationsService.sendSms(phone, smsText);
+    const verifyServiceSid = this.configService.get<string>('TWILIO_VERIFY_SERVICE_SID');
+    let verifySent = false;
+    if (verifyServiceSid) {
+      verifySent = await this.notificationsService.sendVerifyOtp(phone);
+    }
 
-    this.logger.log(`OTP sent to phone: ${phone} (OTP: ${otp})`);
+    if (!verifySent) {
+      const smsText = `Your Quickox verification code is: ${otp}. Valid for 5 minutes.`;
+      await this.notificationsService.sendSms(phone, smsText);
+    }
+
+    this.logger.log(`OTP dispatched for phone: ${phone} (Local OTP: ${otp})`);
 
     return {
       message: 'OTP sent successfully',
@@ -53,25 +69,35 @@ export class AuthService {
   }
 
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
-    const { phone, otp, name } = verifyOtpDto;
+    const phone = this.normalizePhone(verifyOtpDto.phone);
+    const { otp, name } = verifyOtpDto;
+
+    const verifyServiceSid = this.configService.get<string>('TWILIO_VERIFY_SERVICE_SID');
+    let isApproved = false;
+    if (verifyServiceSid) {
+      isApproved = await this.notificationsService.checkVerifyOtp(phone, otp);
+    }
+
     const otpData = this.otpStore.get(phone);
 
-    if (!otpData) {
-      throw new BadRequestException('OTP expired or not requested for this phone number');
-    }
-
-    if (Date.now() > otpData.expires_at) {
-      this.otpStore.delete(phone);
-      throw new BadRequestException('OTP has expired. Please request a new one');
-    }
-
-    if (otpData.otp !== otp && otp !== '123456') {
-      otpData.attempts += 1;
-      if (otpData.attempts >= 5) {
-        this.otpStore.delete(phone);
-        throw new BadRequestException('Too many invalid attempts. Please request a new OTP');
+    if (!isApproved) {
+      if (!otpData) {
+        throw new BadRequestException('OTP expired or not requested for this phone number');
       }
-      throw new BadRequestException('Invalid OTP entered');
+
+      if (Date.now() > otpData.expires_at) {
+        this.otpStore.delete(phone);
+        throw new BadRequestException('OTP has expired. Please request a new one');
+      }
+
+      if (otpData.otp !== otp && otp !== '123456') {
+        otpData.attempts += 1;
+        if (otpData.attempts >= 5) {
+          this.otpStore.delete(phone);
+          throw new BadRequestException('Too many invalid attempts. Please request a new OTP');
+        }
+        throw new BadRequestException('Invalid OTP entered');
+      }
     }
 
     this.otpStore.delete(phone);

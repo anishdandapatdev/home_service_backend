@@ -5,7 +5,7 @@ export class VerifyOtpDto {
   @ApiProperty({ example: '9876543210' })
   @IsNotEmpty()
   @IsString()
-  @Matches(/^[6-9]\d{9}$/)
+  @Matches(/^(\+91|91)?[6-9]\d{9}$/, { message: 'Phone number must be a valid Indian mobile number' })
   phone: string;
 
   @ApiProperty({ example: '123456', description: '6-digit OTP received via SMS' })
