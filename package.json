@@ -9,7 +9,7 @@
   },
   "license": "UNLICENSED",
   "scripts": {
-    "build": "prisma generate && nest build",
+    "build": "prisma generate && ./node_modules/.bin/nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "node dist/main",
     "start:dev": "nest start --watch",
@@ -19,7 +19,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma db push --accept-data-loss",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "deploy": "prisma generate && nest build && prisma db push --accept-data-loss && node dist/main"
+    "deploy": "prisma generate && ./node_modules/.bin/nest build && prisma db push --accept-data-loss && node dist/main"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
