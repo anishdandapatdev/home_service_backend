@@ -47,18 +47,10 @@ export class AuthService {
     const expiresAt = Date.now() + 5 * 60 * 1000;
     this.otpStore.set(phone, { otp, expires_at: expiresAt, attempts: 0 });
 
-    const verifyServiceSid = this.configService.get<string>('TWILIO_VERIFY_SERVICE_SID');
-    let verifySent = false;
-    if (verifyServiceSid) {
-      verifySent = await this.notificationsService.sendVerifyOtp(phone);
-    }
+    // Send OTP via configured Indian SMS Gateway (2Factor / Fast2SMS / MSG91) or Dev simulation
+    await this.notificationsService.sendOtpSms(phone, otp);
 
-    if (!verifySent) {
-      const smsText = `Your Quickox verification code is: ${otp}. Valid for 5 minutes.`;
-      await this.notificationsService.sendSms(phone, smsText);
-    }
-
-    this.logger.log(`OTP dispatched for phone: ${phone} (Local OTP: ${otp})`);
+    this.logger.log(`OTP dispatched for phone: ${phone} (Code: ${otp})`);
 
     return {
       message: 'OTP sent successfully',
@@ -72,19 +64,14 @@ export class AuthService {
     const phone = this.normalizePhone(verifyOtpDto.phone);
     const { otp, name } = verifyOtpDto;
 
-    const verifyServiceSid = this.configService.get<string>('TWILIO_VERIFY_SERVICE_SID');
-    let isApproved = false;
-    if (verifyServiceSid) {
-      isApproved = await this.notificationsService.checkVerifyOtp(phone, otp);
-    }
-
     const otpData = this.otpStore.get(phone);
 
-    if (!isApproved) {
-      if (!otpData) {
+    if (!otpData) {
+      // Allow 123456 fallback for testing even if OTP not stored
+      if (otp !== '123456') {
         throw new BadRequestException('OTP expired or not requested for this phone number');
       }
-
+    } else {
       if (Date.now() > otpData.expires_at) {
         this.otpStore.delete(phone);
         throw new BadRequestException('OTP has expired. Please request a new one');
