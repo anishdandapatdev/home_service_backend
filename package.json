@@ -9,7 +9,7 @@
   },
   "license": "UNLICENSED",
   "scripts": {
-    "build": "prisma generate && ./node_modules/.bin/nest build",
+    "build": "prisma generate && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "node dist/main",
     "start:dev": "nest start --watch",

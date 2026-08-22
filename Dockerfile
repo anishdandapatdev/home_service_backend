@@ -13,7 +13,7 @@ RUN npm ci
 # Copy source and build
 COPY . .
 RUN npx prisma generate
-RUN npm run build
+RUN npx nest build
 
 FROM node:22-alpine
 
