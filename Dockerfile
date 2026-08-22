@@ -6,13 +6,14 @@ WORKDIR /app
 
 # Install dependencies (including devDependencies needed for build)
 COPY package*.json ./
+COPY tsconfig*.json nest-cli.json ./
 COPY prisma ./prisma
 RUN npm ci
 
 # Copy source and build
 COPY . .
+RUN npx prisma generate
 RUN npm run build
-RUN ls -la /app/dist
 
 FROM node:22-alpine
 
@@ -20,15 +21,13 @@ RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-# Copy package files so npm scripts (e.g. deploy) are available at runtime
+# Copy package files, configurations, and compiled artifacts
 COPY package*.json ./
-
-# Copy compiled output and dependencies from the builder stage
+COPY tsconfig*.json nest-cli.json ./
 COPY --from=builder /app/dist ./dist
-RUN ls -la ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 3000
 
-CMD ["npm", "run", "deploy"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main.js"]
